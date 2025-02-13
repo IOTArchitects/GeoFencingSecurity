@@ -5,32 +5,133 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Image
+  Image,
+  Alert,
 } from "react-native";
-import Ionicons from "react-native-vector-icons/Ionicons"; // For Eye icon
+import Ionicons from "react-native-vector-icons/Ionicons";
 
 const Signup = ({ navigation }) => {
+  const [firstname, setFirstname] = useState("");
+  const [lastname, setLastname] = useState("");
+  const [email, setEmail] = useState("");
+  const [phonenumber, setPhonenumber] = useState("");
+  const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
+
+  // Error states
+  const [errors, setErrors] = useState({});
+
+  // Function to validate fields
+  const validateFields = () => {
+    let newErrors = {};
+
+    if (!firstname.trim()) newErrors.firstname = "First name is required";
+    if (!lastname.trim()) newErrors.lastname = "Last name is required";
+    if (!email.trim()) newErrors.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = "Invalid email format";
+
+    if (!phonenumber.trim()) newErrors.phonenumber = "Phone number is required";
+    else if (!/^\d{10}$/.test(phonenumber)) newErrors.phonenumber = "Invalid phone number";
+
+    if (!password.trim()) newErrors.password = "Password is required";
+    else if (password.length < 6) newErrors.password = "Password must be at least 6 characters";
+    else if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(password))
+      newErrors.password = "Password must be alphanumeric";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Function to handle signup
+  const handleSignup = async () => {
+    if (!validateFields()) return; // Stop if validation fails
+
+    try {
+      const response = await fetch("http://10.50.14.226:4000/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          firstname,
+          lastname,
+          email,
+          phonenumber,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert("Success", "Signup Successful!");
+        navigation.navigate("Login");
+      } else {
+        if (data.message === "Email already exists") {
+          setErrors((prev) => ({ ...prev, email: "Email already exists" }));
+        } else {
+          Alert.alert("Error", "Signup Failed! Please try again.");
+        }
+      }
+    } catch (error) {
+      console.error("Signup Error:", error);
+      Alert.alert("Error", "Error connecting to the server");
+    }
+  };
 
   return (
     <View style={styles.div1}>
       <Text style={styles.text1}>Create an Account</Text>
-      <Text style={styles.text2}>Welcome?</Text>
-      <Text style={styles.text3}>Please login or signup to our page</Text>
+      <Text style={styles.text2}>Welcome!</Text>
+      <Text style={styles.text3}>Please login or signup to continue</Text>
 
       <View style={styles.nameform}>
-        <TextInput style={styles.fname} placeholder="Firstname" />
-        <TextInput style={styles.lname} placeholder="Lastname" />
+        <View>
+          <TextInput
+            style={styles.fname}
+            placeholder="Firstname"
+            value={firstname}
+            onChangeText={setFirstname}
+          />
+          {errors.firstname && <Text style={styles.errorText1}>{errors.firstname}</Text>}
+        </View>
+
+        <View>
+          <TextInput
+            style={styles.lname}
+            placeholder="Lastname"
+            value={lastname}
+            onChangeText={setLastname}
+          />
+          {errors.lastname && <Text style={styles.errorText2}>{errors.lastname}</Text>}
+        </View>
       </View>
 
-      <TextInput style={styles.email} placeholder="Email" />
-      <TextInput style={styles.phno} placeholder="Phone Number" />
+      <TextInput
+        style={styles.email}
+        placeholder="Email"
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+      />
+      {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+
+      <TextInput
+        style={styles.phno}
+        placeholder="Phone Number"
+        value={phonenumber}
+        onChangeText={setPhonenumber}
+        keyboardType="phone-pad"
+      />
+      {errors.phonenumber && <Text style={styles.errorText}>{errors.phonenumber}</Text>}
 
       <View style={styles.passwordContainer}>
         <TextInput
           style={styles.pwd}
           placeholder="Password"
           secureTextEntry={!passwordVisible}
+          value={password}
+          onChangeText={setPassword}
         />
         <TouchableOpacity
           onPress={() => setPasswordVisible(!passwordVisible)}
@@ -43,10 +144,10 @@ const Signup = ({ navigation }) => {
           />
         </TouchableOpacity>
       </View>
+      {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
 
-      {/* Wrapped Sign Up button for alignment */}
       <View style={styles.signupContainer}>
-        <TouchableOpacity style={styles.btnsignup}>
+        <TouchableOpacity style={styles.btnsignup} onPress={handleSignup}>
           <Text style={styles.signuptext}>Sign Up</Text>
         </TouchableOpacity>
       </View>
@@ -55,7 +156,7 @@ const Signup = ({ navigation }) => {
 
       <TouchableOpacity style={styles.btngooglesignup}>
         <Image
-          source={require("../assets/icons8-google-30.png")} // Replace with your Google logo file
+          source={require("../assets/icons8-google-30.png")}
           style={styles.googleIcon}
         />
         <Text style={styles.googlesignuptext}>Sign Up with Google</Text>
@@ -76,7 +177,7 @@ const Signup = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   div1: {
-    marginTop: 200,
+    marginTop: 160,
   },
   text1: {
     fontSize: 30,
@@ -96,7 +197,6 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   nameform: {
-    flexDirection: "row",
     marginTop: 40,
     marginLeft: 60,
   },
@@ -105,17 +205,17 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     borderStyle: "solid",
     borderWidth: 1,
-    width: 100,
+    width: 280,
     height: 39,
     paddingHorizontal: 10,
   },
   lname: {
     backgroundColor: "#F8F8FF",
+    marginTop:10,
     borderRadius: 15,
-    marginLeft: 70,
     borderStyle: "solid",
     borderWidth: 1,
-    width: 100,
+    width: 280,
     height: 39,
     paddingHorizontal: 10,
   },
@@ -172,6 +272,7 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: "center",
     alignItems: "center",
+    marginRight:26
   },
   signuptext: {
     color: "white",
@@ -219,6 +320,24 @@ const styles = StyleSheet.create({
   btnlog: {
     marginLeft: 5,
   },
+  errorText1: {
+    color: "red",
+    fontSize: 12,
+    marginTop: 3,
+    marginLeft:5
+  },
+  errorText2: {
+    color: "red",
+    fontSize: 12,
+    marginTop: 3,
+    marginLeft:5
+  },
+  errorText:{
+    color: "red",
+    fontSize: 12,
+    marginLeft: 65,
+    marginTop: 3,
+  }
 });
 
 export default Signup;
