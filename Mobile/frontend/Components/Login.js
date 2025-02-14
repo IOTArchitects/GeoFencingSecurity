@@ -43,7 +43,7 @@ const Login = ({ navigation }) => {
         // Successful login, navigate to the next screen
         console.log("Login Successful:", data);
         Alert.alert("Success", "Login Successful!");
-        navigation.navigate("HomeScreen"); // Change to your home screen name
+        navigation.navigate("Dashboard"); // Change to your home screen name
       } else {
         // Display error message if login fails
         setErrors({ general: data.message || "Invalid credentials" });

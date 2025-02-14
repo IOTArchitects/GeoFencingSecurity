@@ -39,7 +39,6 @@ CREATE TABLE `userdetails` (
 
 LOCK TABLES `userdetails` WRITE;
 /*!40000 ALTER TABLE `userdetails` DISABLE KEYS */;
-INSERT INTO `userdetails` VALUES ('abhigyan','khaund','abhigyankhaund92@gmail.com',1234567891,'Trishala@99');
 /*!40000 ALTER TABLE `userdetails` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;

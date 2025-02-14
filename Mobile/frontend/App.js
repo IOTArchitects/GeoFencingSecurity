@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import Signup from './Components/Signup';
 import Login from './Components/Login';
+import Dashboard from './Components/Dashboard';
 
 export default function App() {
  
@@ -28,6 +29,15 @@ export default function App() {
             headerShown: false, // Hide the header for Signup
           }}
         />
+        <Stack.Screen
+         name="Dashboard"
+         component={Dashboard}
+         options={
+          {
+            headerShown:false,
+          }
+         }
+          />
        </Stack.Navigator>
      </NavigationContainer>
 

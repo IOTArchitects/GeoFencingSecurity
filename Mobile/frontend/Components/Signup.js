@@ -65,7 +65,7 @@ const Signup = ({ navigation }) => {
 
       if (response.ok) {
         Alert.alert("Success", "Signup Successful!");
-        navigation.navigate("Login");
+        navigation.navigate("Dashboard");
       } else {
         if (data.message === "Email already exists") {
           setErrors((prev) => ({ ...prev, email: "Email already exists" }));
