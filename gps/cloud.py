@@ -2,12 +2,20 @@ import serial
 import pynmea2
 import requests
 from datetime import datetime
+from dotenv import load_dotenv
+import os
 
 # Setup serial connection (adjust the COM port and baud rate as needed)
 ser = serial.Serial('COM9', baudrate=9600, timeout=1)
 
 # ThingSpeak channel details
-WRITE_API_KEY = "JTOV3ORZ4XTJHBEW"
+load_dotenv()
+print(os.getenv('WRITE_API_KEY'))
+
+# Retrieve the API key from the environment variables
+WRITE_API_KEY = os.getenv('WRITE_API_KEY')
+if not WRITE_API_KEY:
+    raise ValueError("WRITE_API_KEY is not set in the .env file.")
 THINGSPEAK_URL = "https://api.thingspeak.com/update.json"
 
 print("Reading GPS data and sending to ThingSpeak channel 2855678...")
