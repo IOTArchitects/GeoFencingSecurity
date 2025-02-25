@@ -17,7 +17,7 @@ app.use(bodyparser.urlencoded({encoded:false}));
 
 //setting up cross origin resource
 app.use(cors({
-    origin: 'http://10.6.54.224:8081',
+    origin: 'http://10.50.14.226:8081',
     methods: 'GET, POST, OPTIONS, PUT, PATCH, DELETE',
     allowedHeaders: 'Content-Type, Authorization',
     credentials: true

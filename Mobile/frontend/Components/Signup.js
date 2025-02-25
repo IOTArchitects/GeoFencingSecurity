@@ -47,7 +47,7 @@ const Signup = ({ navigation }) => {
     if (!validateFields()) return; // Stop if validation fails
 
     try {
-      const response = await fetch("http://10.6.54.224:4000/signup", {
+      const response = await fetch("http://10.50.14.226:4000/signup", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

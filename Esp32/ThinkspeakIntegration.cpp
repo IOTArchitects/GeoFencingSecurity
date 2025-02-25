@@ -3,7 +3,7 @@
 #include <MFRC522.h>
 #include <math.h>
 
-// Earth's radius in cm
+// Earth's radius in cm (6371 km = 637100000 cm)
 #define R 637100000.0  
 
 // LED & Buzzer Pins
@@ -12,14 +12,16 @@
 #define buzzer 3 
 
 // Servo Pin
-#define motorPin 9  // Changed from 9 to 5 (ESP32 PWM-supported pin)
+#define motorPin 9  
 
-// RFID Pins (Corrected MISO & RST)
+// RFID Pins (using your specified wiring)
 #define SS_PIN 22   
-#define RST_PIN 21  // Changed from 255 to 21
+#define RST_PIN 255  
 
 Servo myServo;              
 MFRC522 rfid(SS_PIN, RST_PIN); 
+
+bool isLocked = true;  // System initially locked (Green LED ON)
 
 double toRadians(double degree) {
     return degree * (M_PI / 180.0);
@@ -49,62 +51,61 @@ void setup() {
     pinMode(buzzer, OUTPUT);
 
     myServo.attach(motorPin);
-    myServo.write(0);  // Start servo at 0° position
+    myServo.write(0);
 
-    // Corrected SPI initialization (MISO now set to 13)
-    SPI.begin(19, 13, 23, SS_PIN);
-    Serial.println("SPI Initialized.");
-
+    SPI.begin(19, 15, 23, SS_PIN);
     rfid.PCD_Init();
-    Serial.println("RFID Reader initialized.");
-
-    byte version = rfid.PCD_ReadRegister(MFRC522::VersionReg);
-    Serial.print("RFID Firmware Version: 0x");
-    Serial.println(version, HEX);
-
-    if (version == 0x00 || version == 0xFF) {
-        Serial.println("ERROR: RFID not detected. Check wiring!");
-        while (true); // Halt execution
-    }
 
     digitalWrite(GREEN_LED, HIGH);
     digitalWrite(RED_LED, LOW);
     digitalWrite(buzzer, LOW);
+
+    Serial.println("Place RFID tag near the reader:");
 }
 
 void loop() {
     if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
-        Serial.println("RFID Tag detected!");
-
         String uidString = "";
         for (byte i = 0; i < rfid.uid.size; i++) {
+            if (rfid.uid.uidByte[i] < 0x10)
+                uidString += "0";
             uidString += String(rfid.uid.uidByte[i], HEX);
-            if (i < rfid.uid.size - 1) uidString += " ";
+            if (i < rfid.uid.size - 1)
+                uidString += " ";
         }
-        Serial.print("UID: ");
+        
+        Serial.println();
+        Serial.print("RFID Tag detected, UID: ");
         Serial.println(uidString);
 
-        // Turn on red LED & buzzer, turn off green LED
         digitalWrite(GREEN_LED, LOW);
         digitalWrite(RED_LED, HIGH);
         digitalWrite(buzzer, HIGH);
-
-        // Activate the servo (open door)
-        myServo.write(90);  // Move servo to 90°
-        Serial.println("Servo opened to 90°!");
-
-        delay(3000);  // Keep the door open for 3 seconds
-
-        // Reset to original state
-        myServo.write(0);  // Move servo back to 0°
-        Serial.println("Servo closed to 0°!");
-
-        digitalWrite(RED_LED, LOW);
-        digitalWrite(buzzer, LOW);
-        digitalWrite(GREEN_LED, HIGH);
+        myServo.write(90); // Keep door open
+        Serial.println("Access granted! Servo at 90 degrees.");
 
         rfid.PICC_HaltA();
         rfid.PCD_StopCrypto1();
+
+        isLocked = false; // System stays in unlocked state
     }
-    delay(500);
+
+    // Wait for user input to reset system
+    if (!isLocked && Serial.available() > 0) {
+        char input = Serial.read();
+        if (input == 'R' || input == 'r') { // Reset command
+            Serial.println("Resetting system...");
+
+            digitalWrite(RED_LED, LOW);
+            digitalWrite(buzzer, LOW);
+            digitalWrite(GREEN_LED, HIGH);
+            myServo.write(0); // Lock the door
+
+            isLocked = true;
+            Serial.println("System reset. Place RFID tag to unlock again.");
+        }
+        while (Serial.available() > 0) {
+            Serial.read(); // Clear buffer
+        }
+    }
 }
