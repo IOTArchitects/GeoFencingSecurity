@@ -29,7 +29,7 @@ const Login = ({ navigation }) => {
     if (!validateFields()) return;
 
     try {
-      const response = await fetch("http://10.6.53.154:4000/login", {
+      const response = await fetch("http://172.20.10.4:4000/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
