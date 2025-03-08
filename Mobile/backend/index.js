@@ -5,6 +5,8 @@ const bodyparser = require('body-parser');
 const http = require('http');
 const WebSocket = require('ws');
 const axios = require('axios'); // Add axios for making HTTP requests
+require('dotenv').config();
+const crypto = require('crypto');
 
 const app = express();
 const port = 4000;
@@ -14,7 +16,7 @@ app.use(bodyparser.urlencoded({ extended: false }));
 
 // Setting up cross-origin resource sharing
 app.use(cors({
-  origin: 'http://172.20.10.4:8081',
+  origin: 'http://10.50.8.164:8081',
   methods: 'GET, POST, OPTIONS, PUT, PATCH, DELETE',
   allowedHeaders: 'Content-Type, Authorization',
   credentials: true
@@ -24,7 +26,7 @@ app.use(cors({
 const connection = mysql.createConnection({
   host: 'localhost',   // Replace with your host
   user: 'root',        // Replace with your database user
-  password: 'Trishala@99', // Replace with your database password
+  password: 'root@123', // Replace with your database password
   database: 'geofencingsecuritycredentials'   // Replace with your database name
 });
 
@@ -34,6 +36,31 @@ connection.connect((err) => {
   }
   console.log('Connected to the MySQL database');
 });
+
+
+// AES encryption configuration
+const algorithm = 'aes-256-cbc';
+// Generate a 32-byte key from an environment variable (set PASSWORD_SECRET in your .env file)
+const key = crypto.scryptSync('GROUP_3_SECRETKEY', 'salt', 32);
+// In a real-world scenario, the IV should be unique and stored along with the ciphertext.
+// For simplicity we are using a fixed IV here.
+const iv = Buffer.alloc(16, 0);
+
+// Encrypt function
+function encrypt(text) {
+  const cipher = crypto.createCipheriv(algorithm, key, iv);
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return encrypted;
+}
+
+// Decrypt function
+function decrypt(encryptedText) {
+  const decipher = crypto.createDecipheriv(algorithm, key, iv);
+  let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
 
 // Create HTTP server and WebSocket server
 const server = http.createServer(app);
@@ -102,10 +129,12 @@ app.post('/signup', (req, res) => {
   if (!firstname || !lastname || !email || !phonenumber || !password) {
     return res.status(400).json({ message: 'All the details are required' });
   }
+  
+  const encryptedPassword = encrypt(password);
 
   const query = 'INSERT INTO userdetails (firstname, lastname, email, phonenumber, password) VALUES (?, ?, ?, ?, ?);';
 
-  connection.query(query, [firstname, lastname, email, phonenumber, password], (err, results) => {
+  connection.query(query, [firstname, lastname, email, phonenumber, encryptedPassword], (err, results) => {
     if (err) {
       console.error('Error inserting data into the database:', err);
       return res.status(500).json({ message: 'Internal server error' });
@@ -115,16 +144,45 @@ app.post('/signup', (req, res) => {
   });
 });
 
+// // Login functionality
+// app.post('/login', (req, res) => {
+//   const { username, password } = req.body;
+
+//   if (!username || !password) {
+//     return res.status(400).json({ message: 'Username and password are required' });
+//   }
+
+//   const query = 'SELECT * FROM userdetails WHERE email = ? OR phonenumber = ?';
+
+//   connection.query(query, [username, username], (err, results) => {
+//     if (err) {
+//       console.error('Error fetching user from database:', err);
+//       return res.status(500).json({ message: 'Internal server error' });
+//     }
+
+//     if (results.length === 0) {
+//       return res.status(401).json({ message: 'Invalid username or password' });
+//     }
+
+//     const user = results[0];
+
+//     // Verify password (consider hashing passwords before storing in DB for better security)
+//     if (user.password !== password) {
+//       return res.status(401).json({ message: 'Invalid username or password' });
+//     }
+
+//     res.json({ message: 'Login successful', user });
+//   });
+// });
+
 // Login functionality
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
-
   if (!username || !password) {
     return res.status(400).json({ message: 'Username and password are required' });
   }
 
   const query = 'SELECT * FROM userdetails WHERE email = ? OR phonenumber = ?';
-
   connection.query(query, [username, username], (err, results) => {
     if (err) {
       console.error('Error fetching user from database:', err);
@@ -136,9 +194,17 @@ app.post('/login', (req, res) => {
     }
 
     const user = results[0];
+    // Decrypt the stored password
+    let decryptedPassword;
+    try {
+      decryptedPassword = decrypt(user.password);
+    } catch (error) {
+      console.error('Error decrypting password:', error);
+      return res.status(500).json({ message: 'Internal server error' });
+    }
 
-    // Verify password (consider hashing passwords before storing in DB for better security)
-    if (user.password !== password) {
+    // Verify password
+    if (decryptedPassword !== password) {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
