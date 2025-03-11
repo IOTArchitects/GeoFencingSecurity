@@ -29,7 +29,7 @@ const Login = ({ navigation }) => {
     if (!validateFields()) return;
 
     try {
-      const response = await fetch("http://10.50.14.226:4000/login", {
+      const response = await fetch("http://172.20.10.4:4000/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -56,8 +56,7 @@ const Login = ({ navigation }) => {
 
   return (
     <View style={styles.div1}>
-      <Text style={styles.text1}>Log In to your Account!
-      </Text>
+      <Text style={styles.text1}>Log In to your Account</Text>
       <Text style={styles.text2}>Welcome back! Please enter your details</Text>
 
       <View style={styles.loginform}>
