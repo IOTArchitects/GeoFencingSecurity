@@ -4,7 +4,7 @@ const cors = require('cors');
 const bodyparser = require('body-parser');
 const http = require('http');
 const WebSocket = require('ws');
-const axios = require('axios'); // Add axios for making HTTP requests
+const axios = require('axios'); 
 
 const app = express();
 const port = 4000;
@@ -24,7 +24,7 @@ app.use(cors({
 const connection = mysql.createConnection({
   host: 'localhost',   // Replace with your host
   user: 'root',        // Replace with your database user
-  password: 'Trishala@99', // Replace with your database password
+  password: 'root', // Replace with your database password
   database: 'geofencingsecuritycredentials'   // Replace with your database name
 });
 
