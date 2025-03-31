@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Image,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 
@@ -16,10 +17,100 @@ const Signup = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [phonenumber, setPhonenumber] = useState("");
   const [password, setPassword] = useState("");
+  const [rfidUid, setRfidUid] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [waitingForRfid, setWaitingForRfid] = useState(false);
+  const [rfidStatus, setRfidStatus] = useState(""); // For feedback: "available", "taken", "waiting"
 
   // Error states
   const [errors, setErrors] = useState({});
+
+  // Setup WebSocket connection for RFID detection
+  useEffect(() => {
+    let ws = null;
+    
+    if (waitingForRfid) {
+      ws = new WebSocket('ws://172.20.10.4:4000');
+      
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        setRfidStatus("waiting");
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === 'rfid-detected') {
+            // Check if this RFID is already registered
+            checkRfidAvailability(data.uid);
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setWaitingForRfid(false);
+        setRfidStatus("");
+        Alert.alert("Error", "Failed to connect to RFID reader");
+      };
+      
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        if (waitingForRfid) {
+          setRfidStatus("");
+        }
+      };
+    }
+    
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, [waitingForRfid]);
+
+  // Function to check RFID availability
+  const checkRfidAvailability = async (uid) => {
+    try {
+      const response = await fetch(`http://10.6.53.154:4000/check-rfid/${uid}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+      
+      if (data.isAvailable) {
+        setRfidUid(uid);
+        setRfidStatus("available");
+        setWaitingForRfid(false);
+      } else {
+        setRfidStatus("taken");
+        setTimeout(() => {
+          setRfidStatus("waiting");
+        }, 3000);
+      }
+    } catch (error) {
+      console.error("Error checking RFID availability:", error);
+      Alert.alert("Error", "Failed to check RFID availability");
+      setRfidStatus("");
+      setWaitingForRfid(false);
+    }
+  };
+
+  // Function to start RFID scanning
+  const startRfidScan = () => {
+    setWaitingForRfid(true);
+  };
+
+  // Function to cancel RFID scanning
+  const cancelRfidScan = () => {
+    setWaitingForRfid(false);
+    setRfidStatus("");
+  };
 
   // Function to validate fields
   const validateFields = () => {
@@ -58,6 +149,7 @@ const Signup = ({ navigation }) => {
           email,
           phonenumber,
           password,
+          rfid_uid: rfidUid || null,
         }),
       });
 
@@ -69,6 +161,8 @@ const Signup = ({ navigation }) => {
       } else {
         if (data.message === "Email already exists") {
           setErrors((prev) => ({ ...prev, email: "Email already exists" }));
+        } else if (data.message === "RFID card already registered") {
+          Alert.alert("Error", "This RFID card is already registered to another user");
         } else {
           Alert.alert("Error", "Signup Failed! Please try again.");
         }
@@ -77,6 +171,36 @@ const Signup = ({ navigation }) => {
       console.error("Signup Error:", error);
       Alert.alert("Error", "Error connecting to the server");
     }
+  };
+
+  // Render RFID status message
+  const renderRfidStatus = () => {
+    if (rfidStatus === "waiting") {
+      return (
+        <View style={styles.rfidStatusContainer}>
+          <ActivityIndicator size="small" color="#009688" />
+          <Text style={styles.rfidWaitingText}>Waiting for RFID card...</Text>
+          <TouchableOpacity onPress={cancelRfidScan} style={styles.cancelButton}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    } else if (rfidStatus === "available") {
+      return (
+        <View style={styles.rfidStatusContainer}>
+          <Ionicons name="checkmark-circle" size={20} color="green" />
+          <Text style={styles.rfidAvailableText}>RFID card registered!</Text>
+        </View>
+      );
+    } else if (rfidStatus === "taken") {
+      return (
+        <View style={styles.rfidStatusContainer}>
+          <Ionicons name="close-circle" size={20} color="red" />
+          <Text style={styles.rfidTakenText}>This RFID card is already registered</Text>
+        </View>
+      );
+    }
+    return null;
   };
 
   return (
@@ -146,6 +270,33 @@ const Signup = ({ navigation }) => {
       </View>
       {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
 
+      {/* RFID Registration Section */}
+      <View style={styles.rfidContainer}>
+        {rfidUid ? (
+          <View style={styles.rfidInfoContainer}>
+            <Text style={styles.rfidLabel}>RFID Card:</Text>
+            <Text style={styles.rfidValue}>{rfidUid}</Text>
+            <TouchableOpacity onPress={() => {
+              setRfidUid("");
+              setRfidStatus("");
+            }} style={styles.changeRfidButton}>
+              <Text style={styles.changeRfidText}>Change</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity 
+            style={styles.scanRfidButton} 
+            onPress={startRfidScan}
+            disabled={waitingForRfid}
+          >
+            <Ionicons name="card-outline" size={20} color="white" />
+            <Text style={styles.scanRfidText}>Register RFID Card</Text>
+          </TouchableOpacity>
+        )}
+        
+        {renderRfidStatus()}
+      </View>
+
       <View style={styles.signupContainer}>
         <TouchableOpacity style={styles.btnsignup} onPress={handleSignup}>
           <Text style={styles.signuptext}>Sign Up</Text>
@@ -177,7 +328,7 @@ const Signup = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   div1: {
-    marginTop: 160,
+    marginTop: 120, // Reduced margin to accommodate RFID section
   },
   text1: {
     fontSize: 30,
@@ -260,10 +411,82 @@ const styles = StyleSheet.create({
   eyeIcon: {
     marginLeft: -30,
   },
+  // RFID styling
+  rfidContainer: {
+    marginTop: 15,
+    marginLeft: 60,
+    width: 280,
+  },
+  scanRfidButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#009688",
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 15,
+    marginTop: 10,
+  },
+  scanRfidText: {
+    color: "white",
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  rfidStatusContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  rfidWaitingText: {
+    color: "#009688",
+    marginLeft: 8,
+  },
+  rfidAvailableText: {
+    color: "green",
+    marginLeft: 8,
+  },
+  rfidTakenText: {
+    color: "red",
+    marginLeft: 8,
+  },
+  cancelButton: {
+    marginLeft: 10,
+  },
+  cancelText: {
+    color: "red",
+    fontWeight: "600",
+  },
+  rfidInfoContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#F0F8FF",
+    borderRadius: 15,
+    borderColor: "#009688",
+    borderWidth: 1,
+  },
+  rfidLabel: {
+    fontWeight: "600",
+    marginRight: 5,
+  },
+  rfidValue: {
+    flex: 1,
+    color: "#009688",
+  },
+  changeRfidButton: {
+    marginLeft: 5,
+  },
+  changeRfidText: {
+    color: "#009688",
+    fontWeight: "600",
+  },
+  // Rest of styling
   signupContainer: {
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 24,
+    marginTop: 20,
   },
   btnsignup: {
     backgroundColor: "#009688",
@@ -280,7 +503,7 @@ const styles = StyleSheet.create({
   },
   ortext: {
     textAlign: "center",
-    marginTop: 20,
+    marginTop: 15,
     fontWeight: "600",
     color: "grey",
   },
@@ -290,7 +513,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 280,
     marginLeft: 60,
-    marginTop: 24,
+    marginTop: 15,
     borderStyle: "solid",
     borderWidth: 1,
     borderRadius: 15,
@@ -307,7 +530,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 28,
+    marginTop: 20,
     marginRight:27
   },
   already: {
@@ -335,7 +558,7 @@ const styles = StyleSheet.create({
   errorText:{
     color: "red",
     fontSize: 12,
-    marginLeft: 65,
+    marginLeft: 5,
     marginTop: 3,
   }
 });

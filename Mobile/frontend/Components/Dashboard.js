@@ -93,7 +93,7 @@ export default function Dashboard({ navigation }) {
       <View style={styles.header}>
         <TouchableOpacity style={styles.alarmButton} onPress={() => console.log("Alarm button pressed")}>
           <Image
-            source={require('C:\\Users\\TIRTHANKAR KHAUND\\Desktop\\GeofencingSecurity\\Mobile\\frontend\\assets\\alarm.png')}
+            source={require('../assets/alarm.png')}
             style={styles.alarmIcon}
           />
         </TouchableOpacity>
