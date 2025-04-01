@@ -1,0 +1,7 @@
+version: "3"
+agent:
+    authtoken: 2v8SGLOJ36abIJ5q1LZgCujO38i_5NHd9XUBvm6hyJijkiooi
+tunnels:
+  index.js:
+    proto: https
+    addr: 4000

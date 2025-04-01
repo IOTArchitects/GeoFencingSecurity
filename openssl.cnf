@@ -1,0 +1,14 @@
+[ req ]
+default_bits        = 2048
+default_md          = sha256
+prompt              = no
+encrypt_key         = no
+distinguished_name  = req_distinguished_name
+
+[ req_distinguished_name ]
+C  = IN
+ST = YourState
+L  = YourCity
+O  = YourOrg
+OU = YourUnit
+CN = 172.20.10.4
