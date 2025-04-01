@@ -29,7 +29,7 @@ const Login = ({ navigation }) => {
     if (!validateFields()) return;
 
     try {
-      const response = await fetch("http://10.50.8.164:4000/login", {
+      const response = await fetch("https://4e68-89-19-67-95.ngrok-free.app/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

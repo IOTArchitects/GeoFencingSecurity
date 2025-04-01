@@ -47,7 +47,7 @@ const Signup = ({ navigation }) => {
     if (!validateFields()) return; // Stop if validation fails
 
     try {
-      const response = await fetch("http://10.50.8.164:4000/signup", {
+      const response = await fetch("https://4e68-89-19-67-95.ngrok-free.app/signup", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
