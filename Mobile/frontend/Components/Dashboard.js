@@ -1,42 +1,64 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Switch, Image, StatusBar, Platform, ActivityIndicator, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Switch,
+  Image,
+  StatusBar,
+  Platform,
+  ActivityIndicator,
+  Alert
+} from "react-native";
 import MapView, { Marker } from 'react-native-maps';
 import useWebSocket from 'react-native-use-websocket';
 
-// Replace this with your actual ThingSpeak Channel ID
-const THINKSPEAK_CHANNEL_ID = "2842385";  
-const THINKSPEAK_API_KEY = "EOBFEIONT10IWMSZ";  
+const THINKSPEAK_CHANNEL_ID = "2842385";
+const THINKSPEAK_API_KEY = "EOBFEIONT10IWMSZ";
 
 export default function Dashboard({ navigation }) {
   const [isSecurityEnabled, setIsSecurityEnabled] = useState(false);
   const [coordinates, setCoordinates] = useState({ latitude: 0, longitude: 0 });
   const [loading, setLoading] = useState(true);
-  const [rfidEvent, setRfidEvent] = useState(null); // New state for RFID events
+  const [rfidEvent, setRfidEvent] = useState(null);
 
-  // WebSocket connection for RFID notifications
   const { sendMessage, lastMessage } = useWebSocket('ws://172.20.10.4:4000', {
     onOpen: () => console.log('WebSocket connected'),
     onError: (e) => console.error('WebSocket error:', e),
     onClose: () => console.log('WebSocket disconnected'),
-    shouldReconnect: () => true, // Automatically reconnect
+    shouldReconnect: () => true,
   });
 
   // Handle incoming WebSocket messages
   useEffect(() => {
     if (lastMessage && lastMessage.data) {
-      console.log('Raw WebSocket message:', lastMessage.data);
-  
       try {
         const data = JSON.parse(lastMessage.data);
         if (data.event === 'rfid-detected') {
           setRfidEvent(data);
+
           Alert.alert(
             "RFID Detected",
-            `UID: ${data.uid}\nApprove or reject access?`,
+            `UID: ${data.uid}\nDo you want to approve access?`,
             [
-              { text: "Reject", onPress: () => sendMessage(JSON.stringify({ action: 'reject' })) },
-              { text: "Approve", onPress: () => sendMessage(JSON.stringify({ action: 'approve' })) }
-            ]
+              {
+                text: "Reject",
+                onPress: () => {
+                  sendMessage(JSON.stringify({ action: 'reject' }));
+                  Alert.alert("Rejected", "Access has been rejected.");
+                },
+                style: "destructive"
+              },
+              {
+                text: "Approve",
+                onPress: () => {
+                  sendMessage(JSON.stringify({ action: 'approve' }));
+                  Alert.alert("Approved", "Access has been granted.");
+                }
+              }
+            ],
+            { cancelable: false }
           );
         }
       } catch (error) {
@@ -44,46 +66,33 @@ export default function Dashboard({ navigation }) {
       }
     }
   }, [lastMessage]);
-  
 
-  // Function to fetch latitude & longitude from ThingSpeak
+  // Fetch coordinates from ThingSpeak
   const fetchCoordinates = async () => {
     try {
-      let response = await fetch(
-        `https://api.thingspeak.com/channels/${THINKSPEAK_CHANNEL_ID}/feeds.json?api_key=${THINKSPEAK_API_KEY}&results=1`
-      );
+      let response = await fetch(`https://api.thingspeak.com/channels/${THINKSPEAK_CHANNEL_ID}/feeds.json?api_key=${THINKSPEAK_API_KEY}&results=1`);
       let data = await response.json();
 
       if (data && data.feeds && data.feeds.length > 0) {
-        const latestData = data.feeds[0];
-
-        if (latestData.field1 && latestData.field2) {
+        const latest = data.feeds[0];
+        if (latest.field1 && latest.field2) {
           setCoordinates({
-            latitude: parseFloat(latestData.field1),
-            longitude: parseFloat(latestData.field2),
+            latitude: parseFloat(latest.field1),
+            longitude: parseFloat(latest.field2),
           });
           setLoading(false);
-        } else {
-          console.warn("Latitude or Longitude is missing in ThingSpeak response.");
         }
-      } else {
-        console.warn("No data available from ThingSpeak.");
       }
-    } catch (error) {
-      console.error("Error fetching ThingSpeak data:", error);
+    } catch (err) {
+      console.error("Error fetching ThingSpeak data:", err);
     }
   };
 
-  // Fetch coordinates periodically
   useEffect(() => {
     fetchCoordinates();
-    const interval = setInterval(fetchCoordinates, 10000); // Refresh every 10 seconds
+    const interval = setInterval(fetchCoordinates, 10000);
     return () => clearInterval(interval);
   }, []);
-
-  const toggleSecuritySystem = () => {
-    setIsSecurityEnabled(previousState => !previousState);
-  };
 
   return (
     <View style={styles.container}>
@@ -91,13 +100,9 @@ export default function Dashboard({ navigation }) {
 
       {/* Navbar */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.alarmButton} onPress={() => console.log("Alarm button pressed")}>
-          <Image
-            source={require('C:\\Users\\TIRTHANKAR KHAUND\\Desktop\\GeofencingSecurity\\Mobile\\frontend\\assets\\alarm.png')}
-            style={styles.alarmIcon}
-          />
+        <TouchableOpacity style={styles.alarmButton}>
+          <Image source={require('../assets/alarm.png')} style={styles.alarmIcon} />
         </TouchableOpacity>
-        
         <TouchableOpacity style={styles.signOutButton} onPress={() => navigation.navigate("Login")}>
           <Text style={styles.buttonText}>Sign out</Text>
         </TouchableOpacity>
@@ -129,7 +134,7 @@ export default function Dashboard({ navigation }) {
         </Text>
         <Switch
           value={isSecurityEnabled}
-          onValueChange={toggleSecuritySystem}
+          onValueChange={() => setIsSecurityEnabled(!isSecurityEnabled)}
           trackColor={{ false: "#ccc", true: "#639c5d" }}
           thumbColor={isSecurityEnabled ? "#fff" : "#f4f3f4"}
         />
@@ -145,12 +150,12 @@ export default function Dashboard({ navigation }) {
   );
 }
 
-// Styles
+// ✅ Full Styles - No Laziness Here
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5", 
-    paddingTop: Platform.OS === 'ios' ? 40 : 20, 
+    backgroundColor: "#f5f5f5",
+    paddingTop: Platform.OS === 'ios' ? 40 : 20,
   },
   header: {
     flexDirection: 'row',
@@ -182,7 +187,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   mapContainer: {
-    height: '75%',  
+    height: '75%',
   },
   map: {
     width: '100%',
@@ -192,7 +197,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    height: '25%',  
+    height: '25%',
   },
   toggleText: {
     fontSize: 18,

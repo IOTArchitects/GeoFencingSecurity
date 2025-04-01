@@ -4,7 +4,7 @@ const cors = require('cors');
 const bodyparser = require('body-parser');
 const http = require('http');
 const WebSocket = require('ws');
-const axios = require('axios'); // Add axios for making HTTP requests
+const crypto = require('crypto');
 
 const app = express();
 const port = 4000;
@@ -12,7 +12,6 @@ const port = 4000;
 app.use(express.json());
 app.use(bodyparser.urlencoded({ extended: false }));
 
-// Setting up cross-origin resource sharing
 app.use(cors({
   origin: 'http://172.20.10.4:8081',
   methods: 'GET, POST, OPTIONS, PUT, PATCH, DELETE',
@@ -20,129 +19,71 @@ app.use(cors({
   credentials: true
 }));
 
-// Setup MySQL connection
+// MySQL connection
 const connection = mysql.createConnection({
-  host: 'localhost',   // Replace with your host
-  user: 'root',        // Replace with your database user
-  password: 'Trishala@99', // Replace with your database password
-  database: 'geofencingsecuritycredentials'   // Replace with your database name
+  host: 'localhost',
+  user: 'root',
+  password: 'Trishala@99',
+  database: 'geofencingsecuritycredentials'
 });
 
 connection.connect((err) => {
   if (err) {
-    console.log(`Error occurred due to error ${err}`);
+    console.log(`Error occurred: ${err}`);
+  } else {
+    console.log('Connected to MySQL database');
   }
-  console.log('Connected to the MySQL database');
 });
 
-// Create HTTP server and WebSocket server
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+// AES encryption
+const algorithm = 'aes-256-cbc';
+const key = crypto.scryptSync('GROUP_3_SECRETKEY', 'salt', 32);
+const iv = Buffer.alloc(16, 0);
 
-// WebSocket connection
-wss.on('connection', (ws) => {
-  console.log('Client connected');
+function encrypt(text) {
+  const cipher = crypto.createCipheriv(algorithm, key, iv);
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return encrypted;
+}
 
-  ws.on('message', (message) => {
-    console.log('Received:', message);
+function decrypt(encryptedText) {
+  const decipher = crypto.createDecipheriv(algorithm, key, iv);
+  let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
 
-    try {
-      const data = JSON.parse(message);
-      if (data.action === 'approve' || data.action === 'reject') {
-        // Forward the response to the Arduino
-        axios.post('http://172.20.10.4:4000/rfid-response', { action: data.action })
-          .then(response => {
-            console.log('Response sent to Arduino:', response.data);
-          })
-          .catch(error => {
-            console.error('Error sending response to Arduino:', error);
-          });
-      }
-    } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
-    }
-  });
-
-  ws.on('close', () => {
-    console.log('Client disconnected');
-  });
-});
-
-// RFID detection route
-app.post('/rfid-detected', (req, res) => {
-  const { uid } = req.body;
-  if (!uid) {
-    return res.status(400).json({ message: 'UID is required' });
-  }
-
-  // Notify all WebSocket clients
-  wss.clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ event: 'rfid-detected', uid }));
-    }
-  });
-
-  res.status(200).send('Notification sent to frontend');
-});
-
-// RFID response route (for Arduino)
-let latestAction = null;  // Store latest action from user
-
-// Store action when user approves/rejects
-app.post('/rfid-response', (req, res) => {
-  const { action } = req.body;
-  if (!action) {
-    return res.status(400).json({ message: 'Action is required' });
-  }
-
-  latestAction = action; // Store latest action
-  res.status(200).send(action);
-});
-
-// New GET endpoint to fetch the latest action
-app.get('/rfid-response', (req, res) => {
-  if (!latestAction) {
-    return res.status(404).json({ message: 'No action received yet' });
-  }
-
-  res.status(200).send(latestAction);
-  latestAction = null;  // Reset after sending
-});
-
-
-
-// Signup functionality
+// Signup route
 app.post('/signup', (req, res) => {
   const { firstname, lastname, email, phonenumber, password } = req.body;
   if (!firstname || !lastname || !email || !phonenumber || !password) {
-    return res.status(400).json({ message: 'All the details are required' });
+    return res.status(400).json({ message: 'All fields are required' });
   }
 
-  const query = 'INSERT INTO userdetails (firstname, lastname, email, phonenumber, password) VALUES (?, ?, ?, ?, ?);';
+  const encryptedPassword = encrypt(password);
+  const query = 'INSERT INTO userdetails (firstname, lastname, email, phonenumber, password) VALUES (?, ?, ?, ?, ?)';
 
-  connection.query(query, [firstname, lastname, email, phonenumber, password], (err, results) => {
+  connection.query(query, [firstname, lastname, email, phonenumber, encryptedPassword], (err, results) => {
     if (err) {
-      console.error('Error inserting data into the database:', err);
+      console.error('Error inserting data:', err);
       return res.status(500).json({ message: 'Internal server error' });
     }
-    console.log('User signed up:', results);
     res.json({ message: 'User signed up successfully!' });
   });
 });
 
-// Login functionality
+// Login route
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
-
   if (!username || !password) {
     return res.status(400).json({ message: 'Username and password are required' });
   }
 
   const query = 'SELECT * FROM userdetails WHERE email = ? OR phonenumber = ?';
-
   connection.query(query, [username, username], (err, results) => {
     if (err) {
-      console.error('Error fetching user from database:', err);
+      console.error('Error fetching user:', err);
       return res.status(500).json({ message: 'Internal server error' });
     }
 
@@ -151,9 +92,9 @@ app.post('/login', (req, res) => {
     }
 
     const user = results[0];
+    const decryptedPassword = decrypt(user.password);
 
-    // Verify password (consider hashing passwords before storing in DB for better security)
-    if (user.password !== password) {
+    if (decryptedPassword !== password) {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
@@ -161,7 +102,65 @@ app.post('/login', (req, res) => {
   });
 });
 
-// Start the server
+// WebSocket + RFID handling
+let latestAction = null;
+let connectedClients = [];
+
+function broadcastRFID(uid) {
+  const message = JSON.stringify({ event: 'rfid-detected', uid });
+  connectedClients.forEach(ws => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(message);
+    }
+  });
+}
+
+app.post('/rfid-detected', (req, res) => {
+  const { uid } = req.body;
+  if (!uid) {
+    return res.status(400).json({ message: 'UID is required' });
+  }
+
+  latestAction = null; // Reset previous action
+  broadcastRFID(uid);
+  res.status(200).json({ message: 'RFID broadcasted to clients' });
+});
+
+app.get('/rfid-response', (req, res) => {
+  if (latestAction) {
+    res.status(200).send(latestAction);
+    latestAction = null; // Reset after serving once
+  } else {
+    res.status(204).send(); // No decision yet
+  }
+});
+
+// WebSocket server
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
+wss.on('connection', (ws) => {
+  console.log('Client connected via WebSocket');
+  connectedClients.push(ws);
+
+  ws.on('message', (message) => {
+    try {
+      const { action } = JSON.parse(message);
+      if (action === 'approve' || action === 'reject') {
+        latestAction = action;
+        console.log(`Action set to: ${action}`);
+      }
+    } catch (err) {
+      console.error('Invalid message from WebSocket:', err);
+    }
+  });
+
+  ws.on('close', () => {
+    connectedClients = connectedClients.filter(client => client !== ws);
+    console.log('WebSocket client disconnected');
+  });
+});
+
 server.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
